@@ -1,95 +1,104 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client"
+import { LockOutlined, UserOutlined } from "@ant-design/icons";
+import { Button, Card, Input, Spin, message } from "antd";
+import { useEffect, useState } from "react";
+import { userServiceStore } from "./store/service.store";
+import { Subscription, tap, catchError, EMPTY } from "rxjs";
+import { useRouter } from "next/navigation";
+import { useAuthenticatedStore } from "./store/authenticated.store";
 
-export default function Home() {
+export default function LoginPage() {
+  const [usernameControl, setUsernameControl] = useState("");
+  const [passwordControl, setPasswordControl] = useState("");
+
+  const [isLoadingSubmit, setLoadingSubmit] = useState(false);
+
+  const [messageApi, contextHolder] = message.useMessage();
+
+  const authService = userServiceStore((state) => state.authService);
+  const localStorageService = userServiceStore((state) => state.localStorageService);
+  const subscription = new Subscription();
+
+  const authenticatedState = useAuthenticatedStore((state) => state.userState);
+  const setAuthenticatedState = useAuthenticatedStore((state) => state.setUserState);
+
+  const router = useRouter();
+
+  useEffect(() => {
+
+   const jwt = localStorageService.getDataFromStorage("jwt");
+
+   if(jwt) {
+    router.replace("/dashboard/main");
+   }
+
+   return () => {
+    subscription.unsubscribe();
+   }
+  }, []);
+
+  const login = () => {
+    setLoadingSubmit(true);
+
+    const loginSubscription = authService.login(usernameControl, passwordControl).pipe(
+      tap(data => {
+        setLoadingSubmit(false);
+        localStorageService.saveDataToStorage("jwt", data.token);
+        setAuthenticatedState(data.user);
+        router.push("/dashboard/main");
+      }),
+      catchError((e) => {
+        messageApi.open({
+          type: "error",
+          content: "INVALID USERNAME / PASSWORD."
+        });
+        setUsernameControl("");
+        setPasswordControl("");
+        setLoadingSubmit(false);
+
+        return EMPTY;
+      })
+    ).subscribe();
+  }
+
+
   return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>app/page.tsx</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <>
+      { contextHolder }
+      <div className="flex flex-row align-items-center justify-content-center"
+      style={
+        {
+          height: '96vh'
+        }
+      }>
+        <div className="w-6 h-auto m-auto">
+          <Spin spinning={ isLoadingSubmit } tip="Loading..." size="large">
+            <Card className="p-4">
+              <div className="flex flex-row justify-content-center">
+                <img src="/images/next-logo.png" className="mb-6 m-auto"
+                style={
+                  {
+                    maxWidth: "128px",
+                    height: "auto",
+                  }
+                } />
+              </div>
+              <Input size="large" placeholder="Username" value={ usernameControl } 
+              prefix={ <UserOutlined />}
+              className="mb-3"
+              onChange={ (e) => setUsernameControl(e.target.value) }></Input>
+              <Input placeholder="Password" value={ passwordControl } className="mb-3"
+              size="large" prefix={ <LockOutlined /> } type="password"
+              onChange={ (e) => setPasswordControl(e.target.value) } />
+              <Button className="w-full" size="large" type="primary" onClick={
+                () => {
+                  login();
+                }
+              } disabled={ !usernameControl || !passwordControl }>Login</Button>
+            </Card>
+          </Spin>
         </div>
       </div>
-
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore starter templates for Next.js.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+    </>
   );
 }
